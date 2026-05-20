@@ -1,0 +1,20 @@
+# Virtual environments (common names)
+venv/
+.venv/
+env/
+.env/
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Distribution / packaging
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+*.egg-info/
