@@ -1,7 +1,6 @@
 import modal
 from mi_observatory.api.handlers import (
     handle_analyze_request,
-    handle_layer_request,
     handle_status_request,
 )
 from mi_observatory.services.model_runtime import ModelRuntime
@@ -25,11 +24,6 @@ class Model:
     def analyze(self, data: dict):
         """API endpoint: returns inspect snapshot for requested components."""
         return handle_analyze_request(self.runtime, data)
-
-    @modal.fastapi_endpoint(method="POST")
-    def layer(self, data: dict):
-        """API endpoint: returns generalized all-head layer payload."""
-        return handle_layer_request(self.runtime, data)
 
     @modal.fastapi_endpoint(method="GET")
     def status(self):

@@ -47,31 +47,27 @@ def parse_ablation_request(data: dict[str, Any], default_layer: int) -> dict[str
     }
 
 
-def parse_analyze_request(data: dict[str, Any]) -> tuple[str, int, list[str], dict[str, Any] | None]:
+def parse_analyze_request(data: dict[str, Any]) -> tuple[str, int, list[str], str | None, dict[str, Any] | None]:
     prompt = str(data.get("prompt", "Hello"))
     layer = int(data.get("layer", 0))
     raw_components = data.get("components", ["TOKENS"])
     components = [str(component) for component in raw_components]
+    raw_graph_type = data.get("graphType")
+    graph_type = str(raw_graph_type).upper() if isinstance(raw_graph_type, str) else None
     ablation = parse_ablation_request(data, default_layer=layer)
-    return prompt, layer, components, ablation
-
-
-def parse_layer_request(data: dict[str, Any]) -> tuple[str, int, dict[str, Any] | None]:
-    prompt = str(data.get("prompt", "Hello"))
-    layer = int(data.get("layer", 0))
-    ablation = parse_ablation_request(data, default_layer=layer)
-    return prompt, layer, ablation
+    return prompt, layer, components, graph_type, ablation
 
 
 def handle_analyze_request(runtime: ModelRuntime, data: dict[str, Any]) -> dict[str, Any]:
-    prompt, layer, components, ablation = parse_analyze_request(data)
-    return runtime.analyze(prompt=prompt, layer=layer, components=components, ablation=ablation)
+    prompt, layer, components, graph_type, ablation = parse_analyze_request(data)
+    return runtime.analyze(
+        prompt=prompt,
+        layer=layer,
+        components=components,
+        graph_type=graph_type,
+        ablation=ablation,
+    )
 
 
-def handle_layer_request(runtime: ModelRuntime, data: dict[str, Any]) -> dict[str, Any]:
-    prompt, layer, ablation = parse_layer_request(data)
-    return runtime.layer_snapshot(prompt=prompt, layer=layer, ablation=ablation)
-
-
-def handle_status_request(runtime: ModelRuntime) -> dict[str, bool]:
+def handle_status_request(runtime: ModelRuntime) -> dict[str, Any]:
     return runtime.status()

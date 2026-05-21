@@ -90,17 +90,20 @@ class ModelRuntime:
         prompt: str,
         layer: int,
         components: list[str],
+        graph_type: str | None = None,
         ablation: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         _logits, cache = self._run_with_optional_ablation(prompt, ablation)
         response: dict[str, Any] = {}
+        tokens = self.model.to_str_tokens(prompt)
+        attention = cache["pattern", layer][0].tolist()
 
         if "TOKENS" in components:
-            response["tokens"] = self.model.to_str_tokens(prompt)
+            response["tokens"] = tokens
 
         if "ATTENTION_MAP" in components:
             # [heads, queries, keys]
-            response["attention"] = cache["pattern", layer][0].tolist()
+            response["attention"] = attention
 
         if "RESIDUAL_STREAM" in components:
             # [pos, d_model]
@@ -110,45 +113,37 @@ class ModelRuntime:
         if ablation_metadata is not None:
             response["ablation"] = ablation_metadata
 
+        if graph_type == "HEAT_MAP":
+            response["graph"] = {
+                "type": "HEAT_MAP",
+                "heatmap": self._build_heatmap(tokens=tokens, attention=attention),
+            }
+
         response["result"] = "Live analyze snapshot returned"
         return response
 
-    def layer_snapshot(
-        self,
-        prompt: str,
-        layer: int,
-        ablation: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
-        _logits, cache = self._run_with_optional_ablation(prompt, ablation)
+    def _build_heatmap(self, tokens: list[str], attention: list[list[list[float]]]) -> list[dict[str, Any]]:
+        heatmap: list[dict[str, Any]] = []
 
-        tokens = self.model.to_str_tokens(prompt)
-        attention = cache["pattern", layer][0].tolist()
+        for head_index, head_matrix in enumerate(attention):
+            for query_index, row in enumerate(head_matrix):
+                for key_index, value in enumerate(row):
+                    heatmap.append({
+                        "head": head_index,
+                        "query": f"{query_index}: {tokens[query_index] if query_index < len(tokens) else ''}",
+                        "key": f"{key_index}: {tokens[key_index] if key_index < len(tokens) else ''}",
+                        "value": float(value),
+                    })
 
-        heads = [
-            {
-                "headIndex": head_index,
-                "matrix": matrix,
-            }
-            for head_index, matrix in enumerate(attention)
-        ]
+        return heatmap
 
-        response = {
-            "layer": layer,
-            "metadata": {
-                "tokens": tokens,
-                "totalHeads": len(heads),
-            },
-            "heads": heads,
-            "result": "Live layer snapshot returned",
-            "status": "Live layer snapshot returned",
-            "device": "LiveEngine",
+    def status(self) -> dict[str, Any]:
+        is_model_loaded = hasattr(self, "model") and self.model is not None
+        return {
+            # Keep legacy flags for existing callers.
+            "isLive": True,
+            "isModelLoaded": is_model_loaded,
+            # Mirror GraphQL EngineStatus fields for direct backend mapping.
+            "modelLoaded": "gpt2-small" if is_model_loaded else None,
+            "gpuType": "ModalGPU",
         }
-
-        ablation_metadata = self._ablation_metadata(ablation)
-        if ablation_metadata is not None:
-            response["ablation"] = ablation_metadata
-
-        return response
-
-    def status(self) -> dict[str, bool]:
-        return {"isLive": True, "isModelLoaded": hasattr(self, "model") and self.model is not None}
