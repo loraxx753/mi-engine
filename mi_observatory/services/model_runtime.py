@@ -85,6 +85,13 @@ class ModelRuntime:
             "applied": True,
         }
 
+    def _num_layers(self) -> int:
+        """Return the number of transformer layers in the loaded model."""
+        try:
+            return self.model.cfg.n_layers
+        except Exception:
+            return 12  # GPT-2 small default
+
     def analyze(
         self,
         prompt: str,
@@ -104,6 +111,16 @@ class ModelRuntime:
         if "ATTENTION_MAP" in components:
             # [heads, queries, keys]
             response["attention"] = attention
+
+        if "ALL_LAYERS_ATTENTION" in components:
+            # Return attention patterns for every layer in one pass.
+            # Shape per layer: [heads, queries, keys]
+            n_layers = self._num_layers()
+            response["attentionByLayer"] = [
+                cache["pattern", layer_idx][0].tolist()
+                for layer_idx in range(n_layers)
+            ]
+            response["numLayers"] = n_layers
 
         if "RESIDUAL_STREAM" in components:
             # [pos, d_model]
