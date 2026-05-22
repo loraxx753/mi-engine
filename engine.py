@@ -9,7 +9,8 @@ from mi_observatory.services.model_runtime import ModelRuntime
 # We need transformer_lens for the dissection and fastapi for the URL endpoints.
 image = (
     modal.Image.debian_slim()
-    .pip_install("transformer_lens", "torch", "scikit-learn", "numpy", "fastapi[standard]"))
+    .pip_install("transformer_lens", "torch", "scikit-learn", "numpy", "fastapi[standard]")
+    .add_local_python_source("mi_observatory"))
 app = modal.App("mi-observatory", image=image)
 
 @app.cls(gpu="any", scaledown_window=120)

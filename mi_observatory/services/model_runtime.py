@@ -48,7 +48,7 @@ class ModelRuntime:
             target_heads = sorted(head_set)
             hook_name = utils.get_act_name("pattern", layer)
 
-            def zero_pattern_for_heads(pattern, _hook, selected_heads=target_heads):
+            def zero_pattern_for_heads(pattern, hook=None, selected_heads=target_heads, **_kwargs):
                 pattern[:, selected_heads, :, :] = 0.0
                 return pattern
 
@@ -61,7 +61,10 @@ class ModelRuntime:
         if len(hooks) == 0:
             return self.model.run_with_cache(prompt)
 
-        return self.model.run_with_cache(prompt, fwd_hooks=hooks)
+        # Some transformer_lens versions do not accept fwd_hooks on run_with_cache.
+        # Apply hooks via the model hook context for broader compatibility.
+        with self.model.hooks(fwd_hooks=hooks):
+            return self.model.run_with_cache(prompt)
 
     def _ablation_metadata(self, ablation: dict[str, Any] | None) -> dict[str, Any] | None:
         if not isinstance(ablation, dict):
@@ -100,10 +103,14 @@ class ModelRuntime:
         graph_type: str | None = None,
         ablation: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        _logits, cache = self._run_with_optional_ablation(prompt, ablation)
+        logits, cache = self._run_with_optional_ablation(prompt, ablation)
         response: dict[str, Any] = {}
         tokens = self.model.to_str_tokens(prompt)
         attention = cache["pattern", layer][0].tolist()
+
+        next_token_logits = logits[0, -1, :]
+        predicted_token_id = next_token_logits.argmax(dim=-1).item()
+        response["prediction"] = self.model.to_string(predicted_token_id)
 
         if "TOKENS" in components:
             response["tokens"] = tokens
