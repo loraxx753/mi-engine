@@ -111,6 +111,7 @@ class ModelRuntime:
         next_token_logits = logits[0, -1, :]
         predicted_token_id = next_token_logits.argmax(dim=-1).item()
         response["prediction"] = self.model.to_string(predicted_token_id)
+        response["nextTokenCandidates"] = self._build_next_token_candidates(next_token_logits)
 
         if "TOKENS" in components:
             response["tokens"] = tokens
@@ -145,6 +146,28 @@ class ModelRuntime:
 
         response["result"] = "Live analyze snapshot returned"
         return response
+
+    def _build_next_token_candidates(self, next_token_logits, top_k: int = 25) -> list[dict[str, Any]]:
+        """Build top-k next-token candidates with probability and cumulative percentile."""
+        import torch
+
+        probabilities = torch.softmax(next_token_logits, dim=-1)
+        top_values, top_indices = torch.topk(probabilities, k=min(top_k, probabilities.shape[-1]))
+
+        cumulative = 0.0
+        candidates: list[dict[str, Any]] = []
+
+        for rank, (prob, token_id) in enumerate(zip(top_values.tolist(), top_indices.tolist()), start=1):
+            cumulative += float(prob)
+            candidates.append({
+                "rank": rank,
+                "token": self.model.to_string(int(token_id)),
+                "probability": float(prob),
+                "percent": float(prob) * 100.0,
+                "percentile": min(100.0, cumulative * 100.0),
+            })
+
+        return candidates
 
     def _build_heatmap(self, tokens: list[str], attention: list[list[list[float]]]) -> list[dict[str, Any]]:
         heatmap: list[dict[str, Any]] = []
